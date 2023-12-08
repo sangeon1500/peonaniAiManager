@@ -1,4 +1,4 @@
-# flutter_simple_app
+# Peonani AI Manager
 
 A new Flutter project.
 
