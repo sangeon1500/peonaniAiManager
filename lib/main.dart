@@ -35,8 +35,6 @@ class MainScreen extends StatefulWidget {
 
 class MainScreenState extends State<MainScreen> {
   TextEditingController messageTextController = TextEditingController();
-  // ScrollController scrollController = ScrollController();
-  // final AutoScrollController autoScrollController = AutoScrollController();
   final ItemScrollController itemScrollController = ItemScrollController();
   final ScrollOffsetListener scrollOffsetListener =
       ScrollOffsetListener.create();
@@ -54,6 +52,7 @@ class MainScreenState extends State<MainScreen> {
   int requestSize = 10;
   int currentPage = 0;
   bool isLoading = true;
+  bool isTopReached = false;
 
   @override
   void initState() {
@@ -63,35 +62,29 @@ class MainScreenState extends State<MainScreen> {
       final positions = itemPositionsListener.itemPositions.value;
 
       if (positions.isNotEmpty) {
-        if (positions.first.index == 0) {
-          // 맨 아래에 도달했을 때 실행할 코드
-        }
-        if (positions.last.index == chatItemList.length - 1) {
+        if (positions.last.index == chatItemList.length - 1 &&
+            positions.last.itemTrailingEdge == 1.0 &&
+            !isTopReached) {
           // 맨 위에 도달했을 때 실행할 코드
 
+          isTopReached = true;
           int lastChatLength;
 
           PeonaniAiManagerdApi.getPrevChatList(
                   token: token, size: requestSize, page: currentPage + 1)
               .then((prevChat) => {
-                    lastChatLength = (prevChat?.chatContent ?? []).length - 1,
-                    // setState(() {
-                    //   currentPage = currentPage + 1;
-                    // }),
+                    lastChatLength = chatItemList.length,
+                    isTopReached = false,
                     setState(() {
                       currentPage = currentPage + 1;
                       chatItemList = [
+                        ...chatItemList,
                         ...?prevChat?.chatContent.toList(),
-                        ...chatItemList
                       ];
-                      print(currentPage);
-                      print(chatItemList.length);
                     }),
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      // itemScrollController.scrollToIndex(lastChatLength,
-                      //     preferPosition: AutoScrollPosition.begin);
-
-                      itemScrollController.jumpTo(index: lastChatLength);
+                      itemScrollController.jumpTo(
+                          index: lastChatLength, alignment: 1);
                     })
                   });
         }
@@ -107,13 +100,6 @@ class MainScreenState extends State<MainScreen> {
                 chatItemList = prevChat?.chatContent.toList() ?? [];
               }),
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                // 화면이 빌드된 후 실행될 콜백
-                // itemScrollController.jumpTo(index: chatItemList.length);
-                // if (autoScrollController.hasClients) {RR
-                //   autoScrollController.jumpTo(
-                //     autoScrollController.position.maxScrollExtent,
-                //   );
-                // }
                 isLoading = false;
               })
             });
@@ -127,17 +113,14 @@ class MainScreenState extends State<MainScreen> {
     channel.listen((event) => _handleSocketMessage(event));
   }
 
-  void checkScrollInBottom() {
-    // if (scrollController.position.pixels ==
-    //     scrollController.position.maxScrollExtent) {
-    //   print('맨 마지막에 스크롤이 위치했습니다.');
-    // }
+  bool checkScrollInBottom() {
+    final positions = itemPositionsListener.itemPositions.value;
+    return positions.first.index == 0 && positions.first.itemLeadingEdge == 0.0;
   }
 
   void scrollDown() {
-    // scrollController.animateTo(scrollController.position.maxScrollExtent,
-    //     duration: const Duration(microseconds: 350),
-    //     curve: Curves.fastOutSlowIn);
+    itemScrollController.scrollTo(
+        index: 0, duration: const Duration(milliseconds: 4));
   }
 
   void _handleSocketMessage(String event) async {
@@ -153,25 +136,34 @@ class MainScreenState extends State<MainScreen> {
     switch (type) {
       case 'url':
         print('url');
+        setState(() {
+          chatItemList.first.imageUrls = imageUrls;
+          chatItemList.first.relatedUrls = relatedUrls;
+        });
         break;
       case 'question':
         print('question');
+        setState(() {
+          chatItemList.first.relatedUrls = relatedQuestion;
+        });
         break;
       case 'text':
-        print('text');
+        // print('text');
 
         setState(() {
-          chatItemList.last.content += data['message'];
+          chatItemList.first.content += message;
         });
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           // 화면이 빌드된 후 실행될 콜백
-          scrollDown();
+          if (checkScrollInBottom()) {
+            scrollDown();
+          }
         });
 
         break;
       case 'end':
-        print('urendl');
+        print('end');
         break;
     }
   }
@@ -183,32 +175,38 @@ class MainScreenState extends State<MainScreen> {
     };
 
     setState(() {
-      chatItemList.add(ChatItem(
-          id: '',
-          content: sendMessage,
-          created: '',
-          nickname: '',
-          roomId: '',
-          writerName: '',
-          imageUrls: [],
-          relatedUrls: []));
+      chatItemList.insert(
+          0,
+          ChatItem(
+              id: '',
+              content: sendMessage,
+              created: '',
+              nickname: '사용자',
+              roomId: '',
+              writerName: '사용자',
+              imageUrls: [],
+              relatedUrls: []));
     });
 
     setState(() {
-      chatItemList.add(ChatItem(
-          id: '',
-          content: '',
-          created: '',
-          nickname: '',
-          roomId: '',
-          writerName: '',
-          imageUrls: [],
-          relatedUrls: []));
+      chatItemList.insert(
+          0,
+          ChatItem(
+              id: '',
+              content: '',
+              created: '',
+              nickname: '',
+              roomId: '',
+              writerName: '',
+              imageUrls: [],
+              relatedUrls: []));
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (checkScrollInBottom()) {
+        scrollDown();
+      }
       // 화면이 빌드된 후 실행될 콜백
-      scrollDown();
     });
 
     channel.add(json.encode(sendData));
@@ -217,8 +215,6 @@ class MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     messageTextController.dispose();
-    // itemScrollController.;
-
     super.dispose();
   }
 
@@ -234,30 +230,6 @@ class MainScreenState extends State<MainScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Card(
-                    child: PopupMenuButton(itemBuilder: (context) {
-                      return [
-                        const PopupMenuItem(
-                          child: ListTile(
-                            title: Text('히스토리'),
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          child: ListTile(
-                            title: Text('설정'),
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          child: ListTile(
-                            title: Text('질의'),
-                          ),
-                        ),
-                      ];
-                    }),
-                  ),
-                ),
                 Expanded(
                   child: ScrollablePositionedList.builder(
                     itemScrollController: itemScrollController,
@@ -322,8 +294,6 @@ class MainScreenState extends State<MainScreen> {
                       IconButton(
                           iconSize: 42,
                           onPressed: () async {
-                            print(messageTextController.text);
-
                             if (messageTextController.text.isEmpty) {
                               return;
                             }
