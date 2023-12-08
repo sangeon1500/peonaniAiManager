@@ -43,15 +43,12 @@ class MainScreenState extends State<MainScreen> {
 
   late WebSocket channel;
 
-  static const String _userMessage = 'peonani ai manager';
-  String get _currentUserMessage => _userMessage;
-
   final String token =
       'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJpanl6QTRFUmgxUU9aM24xeDRHd2ZpdUpHUVZBZVVJcGJpbUJwSTVzY0R3OUVVbmhtL1ozaHdkZ0dReEJJRkRlOGlQd01uS3Z1eUQyWkMzbmlwK1QxSGROYWVJTXliK21JOXJKOGc2VE9XZkwxdDZ6VEJjSXpYOW83Z29zZVZ1MXB0dnVvUnZuOUU5RTIzMTQ4L1VuTmVPNllDMXAxMVJCNDFHVnlueDJGNWN2SDVueGoxTGdOc1NHaGZVZ21ySFdNWFNYQ3QrUC9UTzFmd0RkQVgyVi9lWlZZYVpYOGFnRHVsTjRyRnVkang1akxlY1BzZFRMVEFsYm5tR2dMck5xd2dZdDhTNlErY2VQRis1ZXRUMkt5ZWc0VjdFRVByVFJrUG52MDVPSjRGekVSWHd4SFE4YUZDUm5qWGhEWkt5UGtkMFhBbUhVWTkzYzRnMFpkdmZyQm9Pb0pLVVFRN3plN0laamNUYUplcVA2aHZkZWRZaVV0RnJCVzlIakpqam9BRVVDTUVVcGNsRlJuZC9oai9EWkJEdy9MS1Q3VTh6NDVEZ3RDV2FvQzFVaXZWd0todTBKRUJ5aW5XYUM3d29JbFhLbjA0NnhWcEg1NTdvZ1B3ZjExeHczSU9LL1o3QUdjWnVsdUpGaEpIRDhzRVFuS0tIS2tKNFltQ3BVTWlzM0xJRmFuZjJuQUM5QkNaYmJFb0daejdSOFJMUDd4a0FYNUJpR3Zmd20wVlJFakh0S0ovVytTSVlxbWxDbG51Rndad1VSbE9SWXRUVEkvZmVIczNrbU9LWWFDVGNqWVdSRFdQVEFzeG1GT2ZOb0JrYUhUWmJhaGkwaGV0ZzJ1V0dQOUNIRHR0M0pCeVJLczMyS3BDL2FGOE9MSjkrK1Y1TTg1VUtrNmJiSUNHdz0iLCJpYXQiOjE3MDE1NjMzMjIsImV4cCI6MTc2NDYzNTMyMn0.i0ny9xne7Pvgqqas6hYpkli2Caf4GWX24GWlsGG-_xUMQdjQa0RJp6OmSVx5nhVpdkmlXa99key7g2PSBIuWdw';
   List<ChatItem> chatItemList = [];
   int requestSize = 10;
   int currentPage = 0;
-  bool isLoading = true;
+  bool isLoading = false;
   bool isTopReached = false;
 
   @override
@@ -65,10 +62,13 @@ class MainScreenState extends State<MainScreen> {
         if (positions.last.index == chatItemList.length - 1 &&
             positions.last.itemTrailingEdge == 1.0 &&
             !isTopReached) {
-          // 맨 위에 도달했을 때 실행할 코드
-
-          isTopReached = true;
           int lastChatLength;
+
+          // 맨 위에 도달했을 때 실행할 코드
+          setState(() {
+            isLoading = true;
+          });
+          isTopReached = true;
 
           PeonaniAiManagerdApi.getPrevChatList(
                   token: token, size: requestSize, page: currentPage + 1)
@@ -76,6 +76,7 @@ class MainScreenState extends State<MainScreen> {
                     lastChatLength = chatItemList.length,
                     isTopReached = false,
                     setState(() {
+                      isLoading = false;
                       currentPage = currentPage + 1;
                       chatItemList = [
                         ...chatItemList,
@@ -97,6 +98,7 @@ class MainScreenState extends State<MainScreen> {
             token: token, size: requestSize, page: currentPage)
         .then((prevChat) => {
               setState(() {
+                isLoading = false;
                 chatItemList = prevChat?.chatContent.toList() ?? [];
               }),
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -165,6 +167,9 @@ class MainScreenState extends State<MainScreen> {
       case 'end':
         print('end');
         break;
+      case 'error':
+        print('error');
+        break;
     }
   }
 
@@ -206,7 +211,6 @@ class MainScreenState extends State<MainScreen> {
       if (checkScrollInBottom()) {
         scrollDown();
       }
-      // 화면이 빌드된 후 실행될 콜백
     });
 
     channel.add(json.encode(sendData));
@@ -221,97 +225,120 @@ class MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: const Text('펴나니 AI 매니저'),
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Expanded(
-                  child: ScrollablePositionedList.builder(
-                    itemScrollController: itemScrollController,
-                    itemPositionsListener: itemPositionsListener,
-                    scrollOffsetListener: scrollOffsetListener,
-                    scrollDirection: Axis.vertical,
-                    reverse: true,
-                    shrinkWrap: true,
-                    itemCount: chatItemList.length,
-                    itemBuilder: (_, int index) {
-                      final ChatItem chatItem = chatItemList[index];
-                      final bool isCustomerQuestion = chatItem.writerName != '';
+      appBar: AppBar(
+        title: const Text('펴나니 AI 매니저'),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              if (isLoading)
+                const Padding(
+                    padding: EdgeInsets.only(top: 10, bottom: 15),
+                    child: CircularProgressIndicator()),
+              Expanded(
+                child: ScrollablePositionedList.builder(
+                  itemScrollController: itemScrollController,
+                  itemPositionsListener: itemPositionsListener,
+                  scrollOffsetListener: scrollOffsetListener,
+                  scrollDirection: Axis.vertical,
+                  reverse: true,
+                  shrinkWrap: true,
+                  itemCount: chatItemList.length,
+                  itemBuilder: (_, int index) {
+                    final ChatItem chatItem = chatItemList[index];
+                    final bool isCustomerQuestion = chatItem.writerName != '';
 
-                      return Container(
-                        padding: const EdgeInsets.only(
-                            left: 14, right: 14, top: 10, bottom: 10),
-                        child: Align(
-                          alignment: (isCustomerQuestion
-                              ? Alignment.topRight
-                              : Alignment.topLeft),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              color: (isCustomerQuestion
-                                  ? Colors.grey.shade200
-                                  : Colors.blue[200]),
-                            ),
-                            padding: const EdgeInsets.all(16),
-                            child: Text(
-                              chatItem.content,
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: (isCustomerQuestion
-                                    ? Colors.black
-                                    : Colors.white),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                SizedBox(
-                  child: Row(
-                    children: [
-                      Expanded(
+                    return Container(
+                      padding: const EdgeInsets.only(
+                          left: 14, right: 30, top: 10, bottom: 10),
+                      child: Align(
+                        alignment: (isCustomerQuestion
+                            ? Alignment.topRight
+                            : Alignment.topLeft),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(32),
-                              border: Border.all()),
-                          child: TextField(
-                            controller: messageTextController,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              hintText: '궁금하신 내용을 입력하세요.',
+                            borderRadius: BorderRadius.circular(20),
+                            color: (isCustomerQuestion
+                                ? Colors.grey.shade200
+                                : Colors.blue[200]),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            chatItem.content,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: (isCustomerQuestion
+                                  ? Colors.black
+                                  : Colors.white),
                             ),
                           ),
                         ),
                       ),
-                      IconButton(
-                          iconSize: 42,
-                          onPressed: () async {
-                            if (messageTextController.text.isEmpty) {
-                              return;
-                            }
+                    );
+                  },
+                ),
+              ),
+              SizedBox(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color:
+                                    const Color.fromRGBO(145, 158, 171, 0.3))),
+                        child: TextField(
+                          controller: messageTextController,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: '궁금하신 내용을 입력하세요.',
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                        iconSize: 42,
+                        onPressed: () async {
+                          if (messageTextController.text.isEmpty) {
+                            return;
+                          }
 
-                            try {
-                              sendData(messageTextController.text.trim());
-                              messageTextController.clear();
-                            } catch (error) {
-                              print(error.toString());
-                            }
-                          },
-                          icon: const Icon(Icons.arrow_circle_up)),
-                    ],
-                  ),
-                )
-              ],
-            ),
+                          try {
+                            sendData(messageTextController.text.trim());
+                            messageTextController.clear();
+                          } catch (error) {
+                            print(error.toString());
+                          }
+                        },
+                        icon: const Icon(Icons.arrow_circle_up)),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ));
+        ),
+      ),
+      floatingActionButton: Align(
+        alignment: const Alignment(1.0, 0.7),
+        child: FloatingActionButton(
+          backgroundColor: Colors.white,
+          elevation: 1.8,
+          onPressed: () {
+            itemScrollController.jumpTo(index: 0, alignment: 0);
+          },
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+          child: const Icon(
+            Icons.arrow_drop_down,
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
   }
 }
