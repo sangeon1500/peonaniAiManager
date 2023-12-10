@@ -49,6 +49,8 @@ class MainScreenState extends State<MainScreen> {
   int requestSize = 10;
   int currentPage = 0;
   bool isLoading = false;
+  bool isProgressAnswer = false;
+  bool isConnectError = false;
   bool isTopReached = false;
 
   @override
@@ -78,10 +80,13 @@ class MainScreenState extends State<MainScreen> {
                     setState(() {
                       isLoading = false;
                       currentPage = currentPage + 1;
-                      chatItemList = [
+                      final newChatList = [
                         ...chatItemList,
                         ...?prevChat?.chatContent.toList(),
                       ];
+
+                      sortChatList(newChatList);
+                      chatItemList = newChatList;
                     }),
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       itemScrollController.jumpTo(
@@ -99,12 +104,26 @@ class MainScreenState extends State<MainScreen> {
         .then((prevChat) => {
               setState(() {
                 isLoading = false;
-                chatItemList = prevChat?.chatContent.toList() ?? [];
+                final newChatList = (prevChat?.chatContent ?? []).toList();
+                sortChatList(newChatList);
+                chatItemList = newChatList;
               }),
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 isLoading = false;
               })
             });
+  }
+
+  void sortChatList(List<ChatItem> chatLst) {
+    chatLst.sort((a, b) {
+      int dateComparison = b.created.compareTo(a.created);
+      if (dateComparison != 0) {
+        return dateComparison;
+      }
+      int nicknameComparison =
+          (a.nickname != '' ? 1 : 0) - (b.nickname != '' ? 1 : 0);
+      return nicknameComparison;
+    });
   }
 
   Future<void> connectSocket(String url, String token) async {
@@ -134,6 +153,7 @@ class MainScreenState extends State<MainScreen> {
     final relatedQuestion = data['relatedQuestion'];
     final answerId = data['answerId'];
     final questionId = data['questionId'];
+    isProgressAnswer = true;
 
     switch (type) {
       case 'url':
@@ -165,10 +185,14 @@ class MainScreenState extends State<MainScreen> {
 
         break;
       case 'end':
+        isProgressAnswer = false;
+
         print('end');
         break;
       case 'error':
         print('error');
+        isProgressAnswer = false;
+        isConnectError = true;
         break;
     }
   }
@@ -252,8 +276,11 @@ class MainScreenState extends State<MainScreen> {
                     final bool isCustomerQuestion = chatItem.writerName != '';
 
                     return Container(
-                      padding: const EdgeInsets.only(
-                          left: 14, right: 30, top: 10, bottom: 10),
+                      padding: EdgeInsets.only(
+                          left: 14,
+                          right: isCustomerQuestion ? 20 : 40,
+                          top: 10,
+                          bottom: 10),
                       child: Align(
                         alignment: (isCustomerQuestion
                             ? Alignment.topRight
@@ -281,6 +308,20 @@ class MainScreenState extends State<MainScreen> {
                   },
                 ),
               ),
+              if (isConnectError)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Text.rich(TextSpan(children: [
+                    TextSpan(
+                        text: '[알림]',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.redAccent)),
+                    TextSpan(
+                        text:
+                            '서버와의 연결이 원활하지 않습니다. 잠시 후에 재시도하거나 네트워크 연결 상태를 확인해주세요.'),
+                  ])),
+                ),
               SizedBox(
                 child: Row(
                   children: [
@@ -301,21 +342,30 @@ class MainScreenState extends State<MainScreen> {
                         ),
                       ),
                     ),
-                    IconButton(
-                        iconSize: 42,
-                        onPressed: () async {
-                          if (messageTextController.text.isEmpty) {
-                            return;
-                          }
+                    isProgressAnswer
+                        ? const SizedBox(
+                            width: 50,
+                            height: 50,
+                            child: Padding(
+                                padding: EdgeInsets.all(10),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 3)),
+                          )
+                        : IconButton(
+                            iconSize: 42,
+                            onPressed: () async {
+                              if (messageTextController.text.isEmpty) {
+                                return;
+                              }
 
-                          try {
-                            sendData(messageTextController.text.trim());
-                            messageTextController.clear();
-                          } catch (error) {
-                            print(error.toString());
-                          }
-                        },
-                        icon: const Icon(Icons.arrow_circle_up)),
+                              try {
+                                sendData(messageTextController.text.trim());
+                                messageTextController.clear();
+                              } catch (error) {
+                                print(error.toString());
+                              }
+                            },
+                            icon: const Icon(Icons.arrow_circle_up)),
                   ],
                 ),
               ),
