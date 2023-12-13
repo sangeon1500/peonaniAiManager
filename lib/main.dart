@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_simple_app/apis/peonani_ai_manager_api.dart';
 import 'package:flutter_simple_app/models/peonani_ai_manager_model.dart';
-import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:flutter_simple_app/utils/dialog.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher_string.dart';
+// import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const MyApp());
@@ -275,6 +277,16 @@ class MainScreenState extends State<MainScreen> {
                     final ChatItem chatItem = chatItemList[index];
                     final bool isCustomerQuestion = chatItem.writerName != '';
 
+                    final relatedUrls =
+                        chatItem.relatedUrls.where((relatedUrl) {
+                      return relatedUrl['description'] != '' ||
+                          relatedUrl['url'] != '';
+                    }).toList();
+
+                    final imageUrls = chatItem.imageUrls.where((imgUrl) {
+                      return imgUrl.isNotEmpty;
+                    }).toList();
+
                     return Container(
                       padding: EdgeInsets.only(
                           left: 14,
@@ -285,24 +297,125 @@ class MainScreenState extends State<MainScreen> {
                         alignment: (isCustomerQuestion
                             ? Alignment.topRight
                             : Alignment.topLeft),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            color: (isCustomerQuestion
-                                ? Colors.grey.shade200
-                                : Colors.blue[200]),
-                          ),
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            chatItem.content,
-                            style: TextStyle(
-                              fontSize: 15,
+                        child: Column(children: <Widget>[
+                          Container(
+                            decoration: BoxDecoration(
+                              border: !isCustomerQuestion
+                                  ? Border.all(
+                                      width: 1,
+                                      color: const Color.fromRGBO(
+                                          204, 204, 204, 1))
+                                  : null,
+                              borderRadius: BorderRadius.circular(20),
                               color: (isCustomerQuestion
-                                  ? Colors.black
+                                  ? const Color.fromRGBO(100, 149, 237, 1)
                                   : Colors.white),
                             ),
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              chatItem.content,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: (isCustomerQuestion
+                                    ? Colors.white
+                                    : Colors.black),
+                              ),
+                            ),
                           ),
-                        ),
+                          if (!isCustomerQuestion && relatedUrls.isNotEmpty)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  height: 50, // 높이를 적절하게 조정
+                                  child: ListView.builder(
+                                    scrollDirection:
+                                        Axis.horizontal, // 가로 스크롤 설정
+                                    shrinkWrap: true,
+                                    itemCount: relatedUrls.length,
+                                    itemBuilder: (_, int index) {
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                              width: 1,
+                                              color: const Color.fromRGBO(
+                                                  32, 101, 209, 1)),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                            horizontal: 4), // 항목 사이 간격 추가
+                                        margin: const EdgeInsets.only(top: 10),
+                                        child: TextButton(
+                                          child: Text(
+                                            '${relatedUrls[index]['description']} : ${relatedUrls[index]['url']}',
+                                            style: const TextStyle(
+                                                color: Color.fromRGBO(
+                                                    32, 101, 209, 1)),
+                                          ),
+                                          onPressed: () async {
+                                            final url = Uri.parse(
+                                                relatedUrls[index]['url']);
+                                            if (await canLaunchUrl(url)) {
+                                              launchUrl(url,
+                                                  mode: LaunchMode
+                                                      .externalApplication);
+                                            }
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          if (!isCustomerQuestion && imageUrls.isNotEmpty)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  height: 80, // 높이를 적절하게 조정
+                                  child: ListView.builder(
+                                    scrollDirection:
+                                        Axis.horizontal, // 가로 스크롤 설정
+                                    shrinkWrap: true,
+                                    itemCount: imageUrls.length,
+                                    itemBuilder: (_, int index) {
+                                      return GestureDetector(
+                                        onTap: () {
+                                          PeonaniDialog.showImage(
+                                            context: context,
+                                            image: Image.network(
+                                              imageUrls[index],
+                                              fit: BoxFit.contain,
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                                width: 1,
+                                                color: const Color.fromRGBO(
+                                                    204, 204, 204, 1)),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          padding: const EdgeInsets.all(10),
+                                          margin:
+                                              const EdgeInsets.only(top: 10),
+                                          child: Image.network(
+                                            imageUrls[index],
+                                            fit: BoxFit.contain,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            )
+                        ]),
                       ),
                     );
                   },
